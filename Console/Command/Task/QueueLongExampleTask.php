@@ -90,6 +90,8 @@ class QueueLongExampleTask extends AppShell {
  * @throws RuntimeException when seconds are 0;
  */
 	public function run($data, $id = null) {
+		$this->startTime = time();
+		
 		$this->hr();
 		$this->out('CakePHP Queue LongExample task.');
 		$seconds = (int)$data;
@@ -100,12 +102,50 @@ class QueueLongExampleTask extends AppShell {
 		for ($i = 0; $i < $seconds; $i++) {
 			sleep(1);
 			$this->QueuedTask->updateProgress($id, ($i + 1) / $seconds);
+			
+			$progress = $this->QueuedTask->find('progress', array(
+				'conditions' => array(
+					'id' => $id
+				)
+			));
+			$progress = array_pop($progress);
+			if (isset($progress['progress'])) {
+				$method = ($i == 0 ? 'out' : 'overwrite');
+				$doneSize = floor(min($progress['progress'], 1) * 50);
+				$this->done = $progress['progress'] * 100;
+				
+				$this->{$method}(sprintf(
+					"[%s>%s] %s %s %s",
+					str_repeat("=", $doneSize),
+					str_repeat(" ", 50 - $doneSize),
+					CakeNumber::toPercentage($progress['progress'], 0, array('multiply' => true)),
+					$this->_niceRemaining(),
+					__('remaining', true)
+				), 0);
+			}
 		}
-		$this->hr();
+		$this->out(null, 1);
 		$this->out(' ->Success, the LongExample Job was run.<-');
 		$this->out(' ');
 		$this->out(' ');
 		return true;
 	}
 
+/**
+ * Calculate remaining time in a nice format
+ *
+ * @return void
+ * @access public
+ */
+	protected function _niceRemaining() {
+		$now = time();
+		if ($now == $this->startTime || $this->done == 0) {
+			return '?';
+		}
+		$rate = ($this->startTime - $now) / $this->done;
+		$remaining = -1 * round($rate * (100 - $this->done));
+		return sprintf('%02d:%02d',
+			floor($remaining / 60),
+			$remaining % 60);
+	}
 }
